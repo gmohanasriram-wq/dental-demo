@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
 // Create supabase client directly here to avoid import path issues
 const supabase = createClient(
@@ -8,33 +8,47 @@ const supabase = createClient(
 );
 
 /* ── POST — Save new appointment ── */
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
+    const body = await request.json();
+    const { name, phone, email, service, date, time, message } = body;
 
     console.log("📋 Received appointment:", body);
 
     // Basic validation
-    if (!body.name || !body.phone) {
+    if (!name || !phone) {
       return NextResponse.json(
         { success: false, error: "Name and phone are required" },
         { status: 400 }
       );
     }
 
+    // Count how many times this phone number has booked before
+    const { count, error: countError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('phone', phone);
+
+    if (countError) {
+      console.error("❌ Count error:", countError);
+      return NextResponse.json({ success: false, error: countError.message }, { status: 500 });
+    }
+
+    const bookingCount = (count || 0) + 1;
+
     const { data, error } = await supabase
       .from("appointments")
-      .insert([
-        {
-          name:    body.name    || null,
-          phone:   body.phone   || null,
-          email:   body.email   || null,
-          service: body.service || null,
-          date:    body.date    || null,
-          time:    body.time    || null,
-          message: body.message || null,
-        },
-      ])
+      .insert([{
+        name:    body.name    || null,
+        phone:   body.phone   || null,
+        email:   body.email   || null,
+        service: body.service || null,
+        date:    body.date    || null,
+        time:    body.time    || null,
+        message: body.message || null,
+        status:  'new',
+        booking_count: bookingCount
+      }])
       .select();
 
     if (error) {
